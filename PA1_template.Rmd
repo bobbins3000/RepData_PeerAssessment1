@@ -1,25 +1,137 @@
----
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
----
+## Code produced to run through peer review assignment 1
+##### Written by Dan Kellett
+##### 10/03/2015
 
+```{r}
+setwd("C:/Users/Dan & Rach/Desktop/Data Science/Reproducible Research")
+```
 
 ## Loading and preprocessing the data
 
+##### Load the data (i.e. read.csv())
+##### Data loaded into data frame 'rawData' by unzipping the file directly from GitHub
+```{r}
+rawData <- read.table(unz("C:/Users/Dan & Rach/Documents/GitHub/RepData_PeerAssessment1/activity.zip"
+                          ,"activity.csv"), sep = ",", header = TRUE)
+```
 
+##### Process/transform the data (if necessary) into a format suitable for your analysis
+##### Convert the 'date' field into a date format
+```{r}
+rawData$date <- as.Date(rawData$date, "%Y-%m-%d")
+```
 
 ## What is mean total number of steps taken per day?
+##### For this part of the assignment, you can ignore the missing values in the dataset.
 
+##### Calculate the total number of steps taken per day
+##### Use the doBy package to sum steps data by date - put results into data frame 'stepsSum'
+```{r}
+library(doBy)
+stepsSum <- summaryBy(steps ~ date, data=rawData, FUN=c(sum))
+stepsSum
+```
 
+##### If you do not understand the difference between a histogram and a barplot, 
+##### research the difference between them. Make a histogram of the total number of steps 
+##### taken each day
+##### Use base plot to create a histogram with some basic re-labelling
+```{r}
+hist(stepsSum$steps.sum, xlab="Total steps by day", main="Histogram of total steps by day")
+```
+
+##### Calculate and report the mean and median of the total number of steps taken per day
+##### Use mean and median functions to calculate
+```{r}
+mean(stepsSum$steps.sum, na.rm=TRUE)
+median(stepsSum$steps.sum, na.rm=TRUE)
+```
 
 ## What is the average daily activity pattern?
 
+#### Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and 
+#### the average number of steps taken, averaged across all days (y-axis)
+#### Use the doBy package to average steps data by interval - put results into data frame 'intervalAve'
+#### Then use base plot to create a labelled time series plot
+```{r}
+intervalAve <- summaryBy(steps ~ interval, data=rawData, FUN=c(mean), na.rm=TRUE)
+plot(intervalAve$interval, intervalAve$steps.mean, xlab="5-minute interval", ylab="Average steps", 
+     type="l", main="Time series plot of average steps by 5-minute time interval")
+```
 
+#### Which 5-minute interval, on average across all the days in the dataset, 
+#### contains the maximum number of steps?
+#### Create a value 'maxStep' with the maximum average step value then subset intervalAve by this
+```{r}
+maxStep <- max(intervalAve$steps.mean)
+maxInterval <- subset(intervalAve, steps.mean == maxStep)
+maxInterval
+```
 
 ## Imputing missing values
+##### Note that there are a number of days/intervals where there are missing values (coded as NA). 
+##### The presence of missing days may introduce bias into some calculations or summaries of the data.
 
+##### Calculate and report the total number of missing values in the dataset (i.e. the total number 
+##### of rows with NAs)
+##### Use sum function to count number of rows where steps = NA
+```{r}
+sum(is.na(rawData$steps))
+```
 
+##### Devise a strategy for filling in all of the missing values in the dataset. The strategy does 
+##### not need to be sophisticated. For example, you could use the mean/median for that day, or 
+##### the mean for that 5-minute interval, etc.
+##### Merge raw data with data containing average #steps by interval
+```{r}
+names(intervalAve)[2] <- "activityLabels"
+mergeData <- merge(rawData, intervalAve)
+```
+
+##### Create a new dataset that is equal to the original dataset but with the missing data filled in.
+##### New mergeData data frame contains data with NA replaced by average steps by interval
+```{r}
+mergeData$steps[is.na(mergeData$steps)] <- mergeData$activityLabels[is.na(mergeData$steps)]
+mergeData$activityLabels <- NULL
+```
+
+##### Make a histogram of the total number of steps taken each day and Calculate and report the 
+##### mean and median total number of steps taken per day. Do these values differ from the estimates 
+##### from the first part of the assignment? What is the impact of imputing missing data on the 
+##### estimates of the total daily number of steps?
+```{r}
+stepsSum2 <- summaryBy(steps ~ date, data=mergeData, FUN=c(sum))
+stepsSum2
+hist(stepsSum2$steps.sum, xlab="Total steps by day", 
+     main="Histogram of total steps by day (missing data imputed)")
+mean(stepsSum2$steps.sum, na.rm=TRUE)
+median(stepsSum2$steps.sum, na.rm=TRUE)
+```
+##### Imputing data increases the total number of steps per day but the mean remains unchanged
 
 ## Are there differences in activity patterns between weekdays and weekends?
+##### For this part the weekdays() function may be of some help here. Use the dataset with 
+##### the filled-in missing values for this part.
+
+##### Create a new factor variable in the dataset with two levels - "weekday" and "weekend" 
+##### indicating whether a given date is a weekday or weekend day.
+##### Create a new column (IsWeekend) based on a logical assessment of the day using the weekdays() 
+##### function (TRUE if Saturday or Sunday, else FALSE)
+```{r}
+mergeData$IsWeekend <- weekdays(mergeData$date) %in% c('Sunday','Saturday')
+```
+
+##### Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval 
+##### (x-axis) and the average number of steps taken, averaged across all weekday days or weekend 
+##### days (y-axis). See the README file in the GitHub repository to see an example of what this 
+##### plot should look like using simulated data.
+##### Summarise the data using summaryBy function then panel plot using ggplot2 library
+```{r}
+intervalAve2 <- summaryBy(steps ~ interval + IsWeekend, data=mergeData, FUN=c(mean), na.rm=TRUE)
+library(ggplot2)
+
+g <- qplot(interval, steps.mean, data=intervalAve2, facets=IsWeekend~., ylab="Mean number of steps",
+           main="Average steps by interval: 
+      Weekend (TRUE) vs. weekday (FALSE)")
+g + geom_line() + facet_grid(IsWeekend~., scales = "free")
+```
